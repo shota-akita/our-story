@@ -1,0 +1,5 @@
+# Keep generated frontend assets byte-stable across platforms.
+assets/** -text
+
+# Force LF for shell scripts used on Linux hosts.
+*.sh text eol=lf

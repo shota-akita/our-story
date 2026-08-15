@@ -1,0 +1,14 @@
+# Exclude files not needed to build the web image.
+
+.git
+.gitignore
+.dockerignore
+
+# Never include local secrets in the image.
+.env
+.env.*
+
+# SQL files are mounted into database services, not the web image.
+db/
+
+*.md

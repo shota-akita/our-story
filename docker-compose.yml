@@ -1,0 +1,73 @@
+services:
+  db:
+    image: mysql:8.4
+    container_name: our-story-db
+    profiles: ["local"]
+    environment:
+      MYSQL_ROOT_PASSWORD: "${DB_PASSWORD:-change-me-local-only}"
+    volumes:
+      - db_data:/var/lib/mysql
+      # スキーマはdb_dataの初回作成時だけ適用される。
+      # :zはSELinux用の共有ラベル。Docker Desktopでは無視される。
+      - ./db/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro,z
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "--silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+
+  # 既存ボリュームでもデモアカウントを使えるよう、起動ごとに再投入する。
+  seed:
+    image: mysql:8.4
+    profiles: ["local"]
+    environment:
+      MYSQL_PWD: "${DB_PASSWORD:-change-me-local-only}"
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./db/seed.sql:/seed.sql:ro,z
+    command: ["sh", "-c", "mysql -h db -u root auth_system < /seed.sql"]
+    restart: "no"
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: our-story-web
+    environment:
+      DB_DRIVER: ${DB_DRIVER:-mysql}
+      DB_HOST: ${DB_HOST:-db}
+      DB_USER: ${DB_USER:-root}
+      DB_PASSWORD: ${DB_PASSWORD:-change-me-local-only}
+      AWS_REGION: ${AWS_REGION:-ap-northeast-1}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+      AWS_SESSION_TOKEN: ${AWS_SESSION_TOKEN:-}
+      DYNAMODB_MEMORIES_TABLE: ${DYNAMODB_MEMORIES_TABLE:-our-story-memories}
+      DYNAMODB_USERS_TABLE: ${DYNAMODB_USERS_TABLE:-our-story-users}
+      APP_PLATFORM: ${APP_PLATFORM:-}
+    # localではDBとseedを待ち、外部DB構成ではwebだけを起動できる。
+    depends_on:
+      db:
+        condition: service_healthy
+        required: false
+      seed:
+        condition: service_completed_successfully
+        required: false
+    volumes:
+      # アプリ資材は読み取り専用でマウントし、:zでSELinux環境にも対応する。
+      - ./config.php:/var/www/html/config.php:ro,z
+      - ./dynamo.php:/var/www/html/dynamo.php:ro,z
+      - ./index.php:/var/www/html/index.php:ro,z
+      - ./index2.php:/var/www/html/index2.php:ro,z
+      - ./api.php:/var/www/html/api.php:ro,z
+      - ./login.php:/var/www/html/login.php:ro,z
+      - ./assets:/var/www/html/assets:ro,z
+    ports:
+      - "${WEB_PORT:-8080}:80"
+    restart: unless-stopped
+
+volumes:
+  db_data:

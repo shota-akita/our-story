@@ -1,0 +1,7 @@
+# Never commit local credentials; track only the template.
+.env
+.env.*
+!.env.example
+
+*.pem
+*.key

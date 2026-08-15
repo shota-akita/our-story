@@ -1,0 +1,8 @@
+{
+  "name": "our-story/app",
+  "description": "Our Story app dependencies",
+  "type": "project",
+  "require": {
+    "aws/aws-sdk-php": "^3.356"
+  }
+}
