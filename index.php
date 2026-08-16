@@ -71,6 +71,7 @@ require_once __DIR__ . '/config.php';
             const [editingId, setEditingId] = useState(null);
             const [activeMapIndices, setActiveMapIndices] = useState({});
             const [sortBy, setSortBy] = useState('date-desc');
+            const [formError, setFormError] = useState('');
 
             const initialFormState = {
                 date: new Date().toISOString().split('T')[0],
@@ -81,24 +82,9 @@ require_once __DIR__ . '/config.php';
             };
             const [formData, setFormData] = useState(initialFormState);
 
-            // Normalize place names and Google Maps URLs for the embed.
-            const getMapUrl = (input) => {
-                if (!input) return "";
-                let query = input;
-
-                if (input.includes('google.com/maps')) {
-                    const placeMatch = input.match(/place\/([^\/]+)/);
-                    if (placeMatch && placeMatch[1]) {
-                        query = decodeURIComponent(placeMatch[1].replace(/\+/g, ' '));
-                    } else {
-                        const qMatch = input.match(/[?&]q=([^&]+)/);
-                        if (qMatch && qMatch[1]) {
-                            query = decodeURIComponent(qMatch[1].replace(/\+/g, ' '));
-                        }
-                    }
-                }
-
-                return `https://maps.google.com/maps?q=${encodeURIComponent(query)}&t=&z=15&ie=UTF8&iwloc=&output=embed`;
+            const getMapUrl = (placeName) => {
+                if (!placeName) return "";
+                return `https://maps.google.com/maps?q=${encodeURIComponent(placeName)}&t=&z=15&ie=UTF8&iwloc=&output=embed`;
             };
 
             const fetchMemories = async () => {
@@ -134,8 +120,14 @@ require_once __DIR__ . '/config.php';
 
             const handleSave = async (e) => {
                 e.preventDefault();
-                const validLocs = formData.locations.filter(l => l.name.trim());
-                if (!validLocs.length) return;
+                setFormError('');
+                const validLocs = formData.locations
+                    .map(location => ({...location, name: location.name.trim()}))
+                    .filter(location => location.name);
+                if (!validLocs.length) {
+                    setFormError('場所名を入力してください。');
+                    return;
+                }
 
                 const payload = {
                     id: editingId,
@@ -160,9 +152,12 @@ require_once __DIR__ . '/config.php';
                     if (res.ok) {
                         setIsModalOpen(false);
                         fetchMemories();
+                    } else {
+                        setFormError('保存できませんでした。入力内容を確認してください。');
                     }
                 } catch (e) {
                     console.error("Save error:", e);
+                    setFormError('保存できませんでした。もう一度お試しください。');
                 }
             };
 
@@ -215,7 +210,7 @@ require_once __DIR__ . '/config.php';
                                 </select>
                             </div>
 
-                            <button onClick={() => { setEditingId(null); setFormData(initialFormState); setIsModalOpen(true); }} className="bg-pink-500 hover:bg-pink-600 text-white px-5 py-2.5 rounded-2xl shadow-lg shadow-pink-200 flex items-center gap-2 font-bold text-sm transition-all active:scale-95">
+                            <button onClick={() => { setEditingId(null); setFormData(initialFormState); setFormError(''); setIsModalOpen(true); }} className="bg-pink-500 hover:bg-pink-600 text-white px-5 py-2.5 rounded-2xl shadow-lg shadow-pink-200 flex items-center gap-2 font-bold text-sm transition-all active:scale-95">
                                 <Icon name="plus-circle" size={20} /> 思い出を追加
                             </button>
                         </div>
@@ -233,7 +228,7 @@ require_once __DIR__ . '/config.php';
                                         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
                                         <div className="absolute bottom-8 left-8 right-8 text-white space-y-3">
                                             <div className="flex items-center gap-2 text-xs font-bold opacity-90"><Icon name="calendar" size={14} />{m.date}</div>
-                                            <h2 className="text-3xl font-black truncate">{m.locations[0]?.name.split('/').pop()} {m.locations.length > 1 && `+${m.locations.length - 1}`}</h2>
+                                            <h2 className="text-3xl font-black truncate">{m.locations[0]?.name} {m.locations.length > 1 && `+${m.locations.length - 1}`}</h2>
                                             {m.albumUrl && <button onClick={() => window.open(m.albumUrl, '_blank')} className="bg-white/20 hover:bg-white/40 backdrop-blur-md px-5 py-2 rounded-2xl flex items-center gap-2 font-bold text-sm border border-white/30 transition-all"><Icon name="camera" size={18} /> Album <Icon name="chevron-right" size={16} /></button>}
                                         </div>
                                     </div>
@@ -249,7 +244,7 @@ require_once __DIR__ . '/config.php';
                                             />
                                             <div className="absolute top-4 right-4 bg-white/90 px-3 py-1.5 rounded-xl text-[10px] font-black text-blue-600 shadow-sm border border-blue-50 flex items-center gap-1.5 max-w-[80%]">
                                                 <Icon name="map-pin" size={12} className="flex-shrink-0" />
-                                                <span className="truncate">{currentLocInput?.includes('http') ? '指定された場所' : currentLocInput}</span>
+                                                <span className="truncate">{currentLocInput}</span>
                                             </div>
                                         </div>
                                         <div className="p-8 bg-white border-t border-gray-100 space-y-4">
@@ -257,7 +252,7 @@ require_once __DIR__ . '/config.php';
                                                 <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar">
                                                     {m.locations.map((loc, i) => (
                                                         <button key={loc.id || i} onClick={() => setActiveMapIndices({...activeMapIndices, [m.id]: i})} className={`px-4 py-2 rounded-xl text-xs font-bold border whitespace-nowrap transition-all ${activeIdx === i ? 'bg-blue-500 text-white border-blue-500 shadow-md shadow-blue-100' : 'bg-white text-gray-400 border-gray-100 hover:border-blue-200'}`}>
-                                                            {loc.name.includes('http') ? `スポット ${i+1}` : loc.name}
+                                                            {loc.name}
                                                         </button>
                                                     ))}
                                                 </div>
@@ -266,12 +261,12 @@ require_once __DIR__ . '/config.php';
                                             <p className="text-gray-600 text-base italic font-medium leading-relaxed whitespace-pre-wrap">"{m.description?.trim() || "二人の大切な一日。"}"</p>
                                             <div className="flex justify-between items-center pt-4 border-t border-gray-50">
                                                 <div className="flex gap-3">
-                                                    <button onClick={() => { setEditingId(m.id); setFormData({...m}); setIsModalOpen(true); }} className="p-3 bg-gray-50 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded-2xl transition-all"><Icon name="pencil" size={20} /></button>
+                                                    <button onClick={() => { setEditingId(m.id); setFormData({...m}); setFormError(''); setIsModalOpen(true); }} className="p-3 bg-gray-50 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded-2xl transition-all"><Icon name="pencil" size={20} /></button>
                                                     <button onClick={() => handleDelete(m.id)} className="p-3 bg-gray-50 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-2xl transition-all"><Icon name="trash-2" size={20} /></button>
                                                 </div>
                                                 <button onClick={() => {
-                                                    const target = currentLocInput.includes('http') ? currentLocInput : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(currentLocInput)}`;
-                                                    window.open(target, '_blank');
+                                                    const target = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(currentLocInput)}`;
+                                                    window.open(target, '_blank', 'noopener,noreferrer');
                                                 }} className="text-blue-500 font-bold text-sm flex items-center gap-1 hover:underline tracking-tighter">
                                                     View on Google Maps <Icon name="external-link" size={14} />
                                                 </button>
@@ -296,15 +291,16 @@ require_once __DIR__ . '/config.php';
                                     <button type="button" onClick={() => setIsModalOpen(false)} className="bg-white p-2 rounded-full text-gray-400 hover:text-gray-600 shadow-sm"><Icon name="x" size={20} /></button>
                                 </div>
                                 <div className="p-8 space-y-5 max-h-[75vh] overflow-y-auto custom-scrollbar">
+                                    {formError && <div role="alert" className="bg-red-50 border border-red-100 text-red-500 text-xs font-bold px-4 py-3 rounded-2xl">{formError}</div>}
                                     <div className="space-y-1 text-left">
                                         <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">日付</label>
                                         <input type="date" required value={formData.date} onChange={e => setFormData({...formData, date: e.target.value})} className="w-full px-5 py-3.5 bg-gray-50 rounded-2xl font-bold border-none focus:ring-2 focus:ring-pink-500 transition-all outline-none" />
                                     </div>
                                     <div className="space-y-2 text-left">
-                                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">スポット</label>
+                                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">場所名</label>
                                         {formData.locations.map((loc, i) => (
                                             <div key={loc.id || i} className="flex gap-2 animate-fadeIn">
-                                                <input type="text" placeholder="場所名 または 地図URL" required value={loc.name} onChange={e => { const updated = [...formData.locations]; updated[i].name = e.target.value; setFormData({...formData, locations: updated}); }} className="flex-1 px-5 py-3.5 bg-gray-50 rounded-2xl font-bold border-none focus:ring-2 focus:ring-pink-500 transition-all outline-none" />
+                                                <input type="text" placeholder="場所名" maxLength={255} required value={loc.name} onChange={e => { const updated = [...formData.locations]; updated[i].name = e.target.value; setFormData({...formData, locations: updated}); setFormError(''); }} className="flex-1 px-5 py-3.5 bg-gray-50 rounded-2xl font-bold border-none focus:ring-2 focus:ring-pink-500 transition-all outline-none" />
                                                 {formData.locations.length > 1 && <button type="button" onClick={() => setFormData({...formData, locations: formData.locations.filter((_, idx) => idx !== i)})} className="p-3 text-rose-300 hover:text-rose-500 transition-colors"><Icon name="trash-2" size={18} /></button>}
                                             </div>
                                         ))}

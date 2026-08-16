@@ -26,6 +26,41 @@ if (($method === 'POST' || $method === 'DELETE') && empty($_SESSION['can_edit'])
 
 require_once __DIR__ . '/config.php';
 
+const LOCATION_NAME_MAX_LENGTH = 255;
+
+function normalize_locations(array $locations): array
+{
+    if ($locations === []) {
+        throw new InvalidArgumentException("At least one location name is required");
+    }
+
+    $normalized = [];
+    foreach ($locations as $index => $location) {
+        if (!is_array($location) || !is_string($location['name'] ?? null)) {
+            throw new InvalidArgumentException("Invalid location name");
+        }
+
+        $name = trim($location['name']);
+        $characterCount = preg_match_all('/./us', $name);
+        if ($name === '' || $characterCount === false) {
+            throw new InvalidArgumentException("Location name is required");
+        }
+        if ($characterCount > LOCATION_NAME_MAX_LENGTH) {
+            throw new InvalidArgumentException("Location name must be 255 characters or fewer");
+        }
+        if (preg_match('/^(?:[a-z][a-z0-9+.-]*:\/\/|www\.|(?:[a-z0-9-]+\.)+[a-z]{2,}(?:[\/:?#]|$))/i', $name) === 1) {
+            throw new InvalidArgumentException("Enter a place name instead of a URL");
+        }
+
+        $normalized[] = [
+            'id' => (int)($location['id'] ?? ($index + 1)),
+            'name' => $name,
+        ];
+    }
+
+    return $normalized;
+}
+
 $useDynamoDb = use_dynamodb();
 $conn = null;
 
@@ -78,6 +113,14 @@ if ($method === 'POST') {
         exit;
     }
 
+    try {
+        $normalizedLocations = normalize_locations($locations);
+    } catch (InvalidArgumentException $e) {
+        http_response_code(400);
+        echo json_encode(["error" => $e->getMessage()]);
+        exit;
+    }
+
     if ($useDynamoDb) {
         try {
             $existing = null;
@@ -87,18 +130,6 @@ if ($method === 'POST') {
 
             $memoryId = ($id !== null && $id !== '') ? (string)$id : dynamodb_generate_memory_id();
             $now = dynamodb_now_iso8601();
-            $normalizedLocations = [];
-            foreach ($locations as $index => $loc) {
-                $name = trim((string)($loc['name'] ?? ''));
-                if ($name === '') {
-                    continue;
-                }
-
-                $normalizedLocations[] = [
-                    'id' => (int)($loc['id'] ?? ($index + 1)),
-                    'name' => $name,
-                ];
-            }
 
             dynamodb_put_memory([
                 'id' => $memoryId,
@@ -150,11 +181,8 @@ if ($method === 'POST') {
                 $memory_id = $conn->insert_id;
             }
 
-            foreach ($locations as $loc) {
-                if (!is_array($loc)) {
-                    throw new InvalidArgumentException("Invalid location");
-                }
-                $locationName = (string)($loc['name'] ?? '');
+            foreach ($normalizedLocations as $location) {
+                $locationName = $location['name'];
                 $stmt_loc = $conn->prepare("INSERT INTO locations (memory_id, name) VALUES (?, ?)");
                 if ($stmt_loc === false) {
                     throw new RuntimeException("Failed to prepare location insert: " . $conn->error);
