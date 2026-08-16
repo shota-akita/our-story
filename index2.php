@@ -128,7 +128,7 @@ require_once __DIR__ . '/config.php';
                     id: editingId,
                     date: formData.date,
                     locations: validLocs,
-                    photoUrl: formData.photoUrl.trim() || 'assets/images/fallback.jpg',
+                    photoUrl: formData.photoUrl.trim(),
                     albumUrl: formData.albumUrl.trim(),
                     description: formData.description.trim()
                 };
@@ -219,7 +219,7 @@ require_once __DIR__ . '/config.php';
                             return (
                                 <div key={m.id} className="bg-white rounded-[2.5rem] shadow-xl overflow-hidden border border-white flex flex-col lg:flex-row transition-all hover:shadow-2xl">
                                     <div className="lg:w-1/2 h-80 lg:h-[480px] relative overflow-hidden bg-gray-200 group">
-                                        <img src={m.photoUrl} alt="Cover" className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" onError={(e) => { e.target.src = 'assets/images/fallback.jpg'; }} />
+                                        <img src={m.photoUrl || 'assets/images/fallback.jpg'} alt="Cover" className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" onError={(e) => { e.target.src = 'assets/images/fallback.jpg'; }} />
                                         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
                                         <div className="absolute bottom-8 left-8 right-8 text-white space-y-3">
                                             <div className="flex items-center gap-2 text-xs font-bold opacity-90"><Icon name="calendar" size={14} />{m.date}</div>
